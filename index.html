@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hussein Python Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        h1 {
+            background: #333;
+            color: white;
+            padding: 10px;
+            margin: 0;
+            text-align: center;
+        }
+        #editor {
+            flex: 1;
+            width: 100%;
+            font-size: 16px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: none;
+            resize: none;
+        }
+        #output {
+            flex: 1;
+            width: 100%;
+            font-size: 16px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: none;
+            background: black;
+            color: lime;
+            resize: none;
+        }
+        button {
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            background: #28a745;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hussein Python Editor</h1>
+    <textarea id="editor" placeholder="اكتب كود البايثون هنا..."></textarea>
+    <button onclick="runCode()">Run</button>
+    <textarea id="output" placeholder="النتيجة..." readonly></textarea>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+    <script>
+        let pyodideReady = main();
+
+        async function main() {
+            let pyodide = await loadPyodide();
+            return pyodide;
+        }
+
+        async function runCode() {
+            let code = document.getElementById("editor").value;
+            let pyodide = await pyodideReady;
+            try {
+                let result = await pyodide.runPythonAsync(code);
+                document.getElementById("output").value = result;
+            } catch (err) {
+                document.getElementById("output").value = err;
+            }
+        }
+    </script>
+</body>
+</html>
