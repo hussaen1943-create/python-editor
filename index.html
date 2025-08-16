@@ -27,10 +27,10 @@ button { flex:1; padding:10px; font-size:16px; cursor:pointer; border:none; colo
 <h1>Hussein Python Terminal IDE</h1>
 <textarea id="editor">print("Hello, Hussein!")</textarea>
 <div id="buttons">
-    <button id="runBtn">Run</button>
+    <button id="runBtn" disabled>Loading Pyodide...</button>
     <button id="stopBtn">Stop</button>
 </div>
-<div id="terminal"></div>
+<div id="terminal">Loading Pyodide...</div>
 
 <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
@@ -49,26 +49,31 @@ let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
 let pyodideReady = false;
 let pyodide;
 let stopFlag = false;
+const runBtn = document.getElementById("runBtn");
+const term = document.getElementById("terminal");
 
-// تحميل Pyodide
+// تحميل Pyodide عند فتح الصفحة
 async function loadPyodideAndPackages() {
     pyodide = await loadPyodide();
     pyodideReady = true;
+    term.innerHTML = "Pyodide loaded! Ready to run Python code.\n";
+    runBtn.disabled = false;
+    runBtn.textContent = "Run";
 }
 loadPyodideAndPackages();
 
 function appendOutput(text){
-    const term = document.getElementById("terminal");
     term.innerHTML += text.replace(/\n/g, "<br>");
     term.scrollTop = term.scrollHeight;
 }
 
 // تشغيل الكود
 async function runCode(){
-    if(!pyodideReady) return alert("Pyodide is still loading...");
+    if(!pyodideReady) return;
+
     stopFlag = false;
-    const term = document.getElementById("terminal");
     term.innerHTML = "";
+
     const code = editor.getValue();
 
     // محاكاة input داخل الـ terminal
@@ -110,7 +115,7 @@ function stopCode(){
     stopFlag = true;
 }
 
-document.getElementById("runBtn").addEventListener("click", runCode);
+runBtn.addEventListener("click", runCode);
 document.getElementById("stopBtn").addEventListener("click", stopCode);
 </script>
 
