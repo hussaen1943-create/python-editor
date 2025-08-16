@@ -62,13 +62,23 @@ async function runCode() {
         inputValues.push(answer);
     }
 
-    // استبدال input() بالمدخلات الجاهزة
+    // استبدال input() بالقيم المدخلة
     let index = 0;
     let preparedCode = code.replace(inputRegex, () => `"${inputValues[index++]}"`);
 
     try {
-        let result = await pyodide.runPythonAsync(preparedCode);
-        document.getElementById("output").textContent = result ?? "";
+        // إعادة توجيه stdout و stderr
+        await pyodide.runPythonAsync(`
+import sys
+import io
+sys.stdout = io.StringIO()
+sys.stderr = sys.stdout
+${preparedCode}
+output = sys.stdout.getvalue()
+        `);
+
+        let output = pyodide.globals.get("output");
+        document.getElementById("output").textContent = output;
     } catch (err) {
         document.getElementById("output").textContent = err;
     }
