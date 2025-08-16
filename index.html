@@ -48,23 +48,30 @@ async function runCode() {
     let pyodide = await pyodideReadyPromise;
     let code = editor.getValue();
 
-    // إعادة توجيه stdout و stderr
-    let userInput = [];
-    let inputFunc = async (promptText="") => {
+    // دالة لتوفير input() ديناميكي
+    function getInput(promptText="") {
         return new Promise(resolve => {
             let answer = window.prompt(promptText);
             resolve(answer ?? "");
         });
-    };
-
-    pyodide.globals.set("input", inputFunc);
+    }
 
     try {
-        let result = await pyodide.runPythonAsync(`
+        // إعادة تعريف input في بايثون
+        pyodide.globals.set("js_input", getInput);
+
+        let wrappedCode = `
+import asyncio
 import builtins
-input = __builtins__.input
-${code}
-        `);
+
+async def main():
+    builtins.input = lambda prompt="": asyncio.get_event_loop().run_until_complete(js_input(prompt))
+    ${code}
+
+asyncio.run(main())
+        `;
+
+        let result = await pyodide.runPythonAsync(wrappedCode);
         document.getElementById("output").textContent = result ?? "";
     } catch (err) {
         document.getElementById("output").textContent = err;
