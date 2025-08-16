@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hussein Python Terminal IDE</title>
+<title>Hussein Python Terminal - Advanced</title>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/dracula.min.css">
@@ -24,15 +24,16 @@ button { flex:1; padding:10px; font-size:16px; cursor:pointer; border:none; colo
 </head>
 <body>
 
-<h1>Hussein Python Terminal IDE</h1>
+<h1>Hussein Python Terminal - Advanced</h1>
 <textarea id="editor">print("Hello, Hussein!")</textarea>
 <div id="buttons">
-    <button id="runBtn" disabled>Loading Pyodide...</button>
+    <button id="runBtn">Run</button>
     <button id="stopBtn">Stop</button>
 </div>
-<div id="terminal">Loading Pyodide...</div>
+<div id="terminal"></div>
 
-<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
 
@@ -46,28 +47,14 @@ let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     autofocus: true
 });
 
-let pyodideReady = false;
-let pyodide;
 let stopFlag = false;
-const runBtn = document.getElementById("runBtn");
 const term = document.getElementById("terminal");
 
-// تحميل Pyodide عند فتح الصفحة
-async function loadPyodideAndPackages() {
-    pyodide = await loadPyodide();
-    pyodideReady = true;
-    term.innerHTML = "Pyodide loaded! Ready to run Python code.\n";
-    runBtn.disabled = false;
-    runBtn.textContent = "Run";
-}
-loadPyodideAndPackages();
-
 function appendOutput(text){
-    term.innerHTML += text.replace(/\n/g, "<br>");
+    term.innerHTML += text.replace(/\n/g,"<br>");
     term.scrollTop = term.scrollHeight;
 }
 
-// محاكاة input داخل الـ terminal
 async function terminalInput(promptText=""){
     if(stopFlag) throw "Execution stopped";
     appendOutput(promptText);
@@ -77,7 +64,7 @@ async function terminalInput(promptText=""){
         input.focus();
         input.addEventListener("keydown", function(e){
             if(e.key === "Enter"){
-                let val = input.value;
+                const val = input.value;
                 term.removeChild(input);
                 appendOutput(val + "\n");
                 resolve(val);
@@ -86,36 +73,35 @@ async function terminalInput(promptText=""){
     });
 }
 
-// تشغيل الكود
-async function runCode(){
-    if(!pyodideReady) return;
-    stopFlag = false;
-    term.innerHTML = "";
-    const code = editor.getValue();
-
-    // استبدال input بـ terminalInput
-    const wrappedCode = `
-import builtins
-_input = builtins.input
-import asyncio
-builtins.input = lambda prompt="": asyncio.get_event_loop().run_until_complete(pyodide.globals.get("terminalInput")(prompt))
-${code}
-builtins.input = _input
-`;
-
-    try{
-        await pyodide.runPythonAsync(wrappedCode);
-    }catch(err){
-        appendOutput(err + "\n");
-    }
+function builtinRead(x){
+    if(Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
+        throw "File not found: '" + x + "'";
+    return Sk.builtinFiles["files"][x];
 }
 
-// Stop الكود بدون reload
+function runCode(){
+    stopFlag = false;
+    term.innerHTML = "";
+    const prog = editor.getValue();
+    Sk.configure({
+        output: appendOutput,
+        read: builtinRead,
+        input: terminalInput
+    });
+    (async function(){
+        try{
+            await Sk.misceval.asyncToPromise(()=>Sk.importMainWithBody("<stdin>", false, prog, true));
+        }catch(e){
+            appendOutput("Error: "+e.toString()+"\n");
+        }
+    })();
+}
+
 function stopCode(){
     stopFlag = true;
 }
 
-runBtn.addEventListener("click", runCode);
+document.getElementById("runBtn").addEventListener("click", runCode);
 document.getElementById("stopBtn").addEventListener("click", stopCode);
 </script>
 
