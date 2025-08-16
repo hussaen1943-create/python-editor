@@ -3,32 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hussein Python IDE Fast</title>
+<title>Hussein Python Terminal IDE</title>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/dracula.min.css">
 
 <style>
-body { margin:0; font-family: monospace; display:flex; flex-direction:column; height:100vh; background:#f4f4f4;}
+body { margin:0; font-family: monospace; display:flex; flex-direction:column; height:100vh; background:#1e1e1e; color:#0f0; }
 h1 { background:#333; color:white; padding:10px; margin:0; text-align:center;}
 #editor { flex:1; }
-#runBtn { padding:10px; font-size:16px; border:none; background:#28a745; color:white; cursor:pointer; }
+#buttons { display:flex; gap:5px; padding:5px; }
+button { flex:1; padding:10px; font-size:16px; cursor:pointer; border:none; color:white; }
+#runBtn { background:#28a745; }
 #runBtn:hover { background:#218838; }
-#output { flex:1; background:#000; color:lime; padding:10px; overflow-y:auto; white-space:pre-wrap;}
+#stopBtn { background:#dc3545; }
+#stopBtn:hover { background:#c82333; }
+#terminal { flex:1; background:#000; color:lime; padding:10px; overflow-y:auto; white-space:pre-wrap; font-family: monospace; }
+#terminal input { background:#222; color:lime; border:none; outline:none; font-family: monospace; width:100%; }
 </style>
 </head>
 <body>
 
-<h1>Hussein Python IDE Fast</h1>
+<h1>Hussein Python Terminal IDE</h1>
 <textarea id="editor">print("Hello, Hussein!")</textarea>
-<button id="runBtn">Run</button>
-<div id="output"></div>
+<div id="buttons">
+    <button id="runBtn">Run</button>
+    <button id="stopBtn">Stop</button>
+</div>
+<div id="terminal"></div>
 
-<!-- CodeMirror -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
-
-<!-- Skulpt -->
 <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
 
@@ -42,40 +47,58 @@ let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     autofocus: true
 });
 
-function outf(text) {
-    let outputDiv = document.getElementById("output");
-    outputDiv.textContent += text;
-}
-
-function builtinRead(x) {
-    if(Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
-        throw "File not found: '" + x + "'";
-    return Sk.builtinFiles["files"][x];
-}
+let isRunning = false;
 
 function runCode() {
-    let code = editor.getValue();
-    let outputDiv = document.getElementById("output");
-    outputDiv.textContent = "";
+    if(isRunning) return;
+    isRunning = true;
+    const term = document.getElementById("terminal");
+    term.innerHTML = "";
 
-    Sk.configure({output:outf, read:builtinRead, inputFun: function(promptText) {
-        return window.prompt(promptText) || "";
-    }});
-
-    (Sk.TurtleGraphics || (Sk.TurtleGraphics = {})).target = 'output';
-
-    let myPromise = Sk.misceval.asyncToPromise(function() {
-        return Sk.importMainWithBody("<stdin>", false, code, true);
+    Sk.configure({
+        output: (text) => {
+            term.innerHTML += text.replace(/\n/g, "<br>");
+            term.scrollTop = term.scrollHeight;
+        },
+        read: function(x) {
+            if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
+                throw "File not found: '" + x + "'";
+            return Sk.builtinFiles["files"][x];
+        },
+        inputFun: function(promptText) {
+            return new Promise(resolve => {
+                term.innerHTML += promptText;
+                const input = document.createElement("input");
+                term.appendChild(input);
+                input.focus();
+                input.addEventListener("keydown", function(e) {
+                    if(e.key === "Enter") {
+                        let val = input.value;
+                        term.removeChild(input);
+                        term.innerHTML += val + "<br>";
+                        resolve(val);
+                    }
+                });
+            });
+        }
     });
 
-    myPromise.then(function(mod) {
-        console.log("Code executed");
-    }, function(err) {
-        outputDiv.textContent += err.toString();
+    let code = editor.getValue();
+
+    (Sk.TurtleGraphics || (Sk.TurtleGraphics = {})).target = 'terminal';
+
+    Sk.misceval.asyncToPromise(function() {
+        return Sk.importMainWithBody("<stdin>", false, code, true);
+    }).then(() => { isRunning = false; }, (err) => {
+        term.innerHTML += err.toString();
+        isRunning = false;
     });
 }
 
 document.getElementById("runBtn").addEventListener("click", runCode);
+document.getElementById("stopBtn").addEventListener("click", () => {
+    location.reload();
+});
 </script>
 
 </body>
