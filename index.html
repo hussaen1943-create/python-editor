@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hussein Python Editor</title>
+<style>
+    body { font-family: monospace; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; background:#f4f4f4; }
+    h1 { background:#333; color:white; padding:10px; margin:0; text-align:center; }
+    #editor, #output { flex:1; width:100%; padding:10px; box-sizing:border-box; font-size:16px; border:none; resize:none; }
+    #editor { background:#fff; }
+    #output { background:#000; color:lime; white-space:pre-wrap; overflow-y:auto; }
+    button { padding:10px; font-size:16px; border:none; background:#28a745; color:white; cursor:pointer; }
+    button:hover { background:#218838; }
+</style>
+</head>
+<body>
+<h1>Hussein Python Editor</h1>
+<textarea id="editor">print("Hello, Hussein!")</textarea>
+<button onclick="runPython()">Run</button>
+<pre id="output"></pre>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script>
+let pyodideReadyPromise = loadPyodide();
+
+async function runPython() {
+    let pyodide = await pyodideReadyPromise;
+    let code = document.getElementById("editor").value;
+    try {
+        let result = await pyodide.runPythonAsync(`
+import io, sys
+buf = io.StringIO()
+sys.stdout = buf
+sys.stderr = buf
+${code}
+buf.getvalue()
+        `);
+        document.getElementById("output").textContent = result;
+    } catch(err) {
+        document.getElementById("output").textContent = err;
+    }
+}
+</script>
+</body>
+</html>
