@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hussein Python Editor</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        background: #f4f4f4;
+    }
+    h1 {
+        background: #333;
+        color: white;
+        padding: 10px;
+        margin: 0;
+        text-align: center;
+    }
+    #editor, #output {
+        flex: 1;
+        width: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+        font-size: 16px;
+        border: none;
+        resize: none;
+        font-family: monospace;
+    }
+    #editor {
+        background: #fff;
+    }
+    #output {
+        background: #000;
+        color: lime;
+    }
+    button {
+        padding: 10px;
+        font-size: 16px;
+        border: none;
+        background: #28a745;
+        color: white;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #218838;
+    }
+</style>
+</head>
+<body>
+<h1>Hussein Python Editor</h1>
+
+<textarea id="editor" placeholder="اكتب كود البايثون هنا...">print("Hello, Hussein!")</textarea>
+<button onclick="runPythonCode()">Run</button>
+<pre id="output" placeholder="النتيجة..."></pre>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script>
+let pyodideReadyPromise = loadPyodide();
+
+async function runPythonCode() {
+    let pyodide = await pyodideReadyPromise;
+    let code = document.getElementById("editor").value;
+    try {
+        // اعادة توجيه print إلى output
+        let output = await pyodide.runPythonAsync(`
+import sys
+from js import document
+class OutputCatcher:
+    def __init__(self):
+        self.data = ""
+    def write(self, s):
+        self.data += str(s)
+        document.getElementById("output").textContent = self.data
+    def flush(self):
+        pass
+
+sys.stdout = OutputCatcher()
+sys.stderr = OutputCatcher()
+${code}
+        `);
+    } catch(err) {
+        document.getElementById("output").textContent = err;
+    }
+}
+</script>
+
+</body>
+</html>
