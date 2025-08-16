@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hussein Python IDE Stable</title>
+<title>Hussein Python IDE Fast</title>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/dracula.min.css">
@@ -19,18 +19,20 @@ h1 { background:#333; color:white; padding:10px; margin:0; text-align:center;}
 </head>
 <body>
 
-<h1>Hussein Python IDE Stable</h1>
+<h1>Hussein Python IDE Fast</h1>
 <textarea id="editor">print("Hello, Hussein!")</textarea>
 <button id="runBtn">Run</button>
 <div id="output"></div>
 
+<!-- CodeMirror -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+
+<!-- Skulpt -->
+<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
 
 <script>
-let pyodideReadyPromise = loadPyodide();
-
 let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     mode: "python",
     theme: "dracula",
@@ -40,34 +42,40 @@ let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     autofocus: true
 });
 
-document.getElementById("runBtn").addEventListener("click", async () => {
-    let pyodide = await pyodideReadyPromise;
+function outf(text) {
+    let outputDiv = document.getElementById("output");
+    outputDiv.textContent += text;
+}
+
+function builtinRead(x) {
+    if(Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
+        throw "File not found: '" + x + "'";
+    return Sk.builtinFiles["files"][x];
+}
+
+function runCode() {
     let code = editor.getValue();
     let outputDiv = document.getElementById("output");
     outputDiv.textContent = "";
 
-    // استبدال input() بدالة prompt مباشرة
-    let safeCode = code.replace(/input\((.*?)\)/g, (match, p1) => {
-        let promptText = p1 ? p1.replace(/['"]/g, '') : '';
-        let val = prompt(promptText) ?? "";
-        return `"${val}"`;
+    Sk.configure({output:outf, read:builtinRead, inputFun: function(promptText) {
+        return window.prompt(promptText) || "";
+    }});
+
+    (Sk.TurtleGraphics || (Sk.TurtleGraphics = {})).target = 'output';
+
+    let myPromise = Sk.misceval.asyncToPromise(function() {
+        return Sk.importMainWithBody("<stdin>", false, code, true);
     });
 
-    try {
-        await pyodide.runPythonAsync(`
-import sys
-import io
-sys.stdout = io.StringIO()
-sys.stderr = sys.stdout
-${safeCode}
-output = sys.stdout.getvalue()
-        `);
-        let result = pyodide.globals.get("output");
-        outputDiv.textContent = result;
-    } catch(err) {
-        outputDiv.textContent = err;
-    }
-});
+    myPromise.then(function(mod) {
+        console.log("Code executed");
+    }, function(err) {
+        outputDiv.textContent += err.toString();
+    });
+}
+
+document.getElementById("runBtn").addEventListener("click", runCode);
 </script>
 
 </body>
