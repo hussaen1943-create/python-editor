@@ -32,10 +32,9 @@ button { flex:1; padding:10px; font-size:16px; cursor:pointer; border:none; colo
 </div>
 <div id="terminal"></div>
 
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
 
 <script>
 let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
@@ -47,64 +46,72 @@ let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     autofocus: true
 });
 
-let isRunning = false;
+let pyodideReady = false;
+let pyodide;
+let stopFlag = false;
 
-function runCode() {
-    if(isRunning) return;
-    isRunning = true;
+// تحميل Pyodide
+async function loadPyodideAndPackages() {
+    pyodide = await loadPyodide();
+    pyodideReady = true;
+}
+loadPyodideAndPackages();
+
+function appendOutput(text){
+    const term = document.getElementById("terminal");
+    term.innerHTML += text.replace(/\n/g, "<br>");
+    term.scrollTop = term.scrollHeight;
+}
+
+// تشغيل الكود
+async function runCode(){
+    if(!pyodideReady) return alert("Pyodide is still loading...");
+    stopFlag = false;
     const term = document.getElementById("terminal");
     term.innerHTML = "";
+    const code = editor.getValue();
 
-    // طابور للـ input
-    let inputQueue = [];
-    let waitingResolve = null;
-
-    function inputFunc(promptText="") {
-        return new Promise(resolve => {
-            term.innerHTML += promptText;
+    // محاكاة input داخل الـ terminal
+    pyodide.globals.set("custom_input", async function(promptText=""){
+        if(stopFlag) throw "Execution stopped";
+        appendOutput(promptText);
+        return await new Promise(resolve=>{
             const input = document.createElement("input");
             term.appendChild(input);
             input.focus();
-            input.addEventListener("keydown", function(e) {
-                if(e.key === "Enter") {
+            input.addEventListener("keydown", function(e){
+                if(e.key === "Enter"){
                     let val = input.value;
                     term.removeChild(input);
-                    term.innerHTML += val + "\n";
+                    appendOutput(val + "\n");
                     resolve(val);
                 }
             });
         });
+    });
+
+    const wrappedCode = `
+import builtins
+_input = builtins.input
+builtins.input = lambda prompt="": custom_input(prompt)
+${code}
+builtins.input = _input
+`;
+
+    try{
+        await pyodide.runPythonAsync(wrappedCode);
+    }catch(err){
+        appendOutput(err + "\n");
     }
+}
 
-    Sk.configure({
-        output: (text) => {
-            term.innerHTML += text.replace(/\n/g,"<br>");
-            term.scrollTop = term.scrollHeight;
-        },
-        read: function(x) {
-            if(Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
-                throw "File not found: '" + x + "'";
-            return Sk.builtinFiles["files"][x];
-        },
-        inputFun: inputFunc
-    });
-
-    let code = editor.getValue();
-
-    (Sk.TurtleGraphics || (Sk.TurtleGraphics = {})).target = 'terminal';
-
-    Sk.misceval.asyncToPromise(function() {
-        return Sk.importMainWithBody("<stdin>", false, code, true);
-    }).then(() => { isRunning = false; }, (err) => {
-        term.innerHTML += err.toString();
-        isRunning = false;
-    });
+// Stop الكود بدون reload
+function stopCode(){
+    stopFlag = true;
 }
 
 document.getElementById("runBtn").addEventListener("click", runCode);
-document.getElementById("stopBtn").addEventListener("click", () => {
-    location.reload();
-});
+document.getElementById("stopBtn").addEventListener("click", stopCode);
 </script>
 
 </body>
