@@ -67,38 +67,38 @@ function appendOutput(text){
     term.scrollTop = term.scrollHeight;
 }
 
+// محاكاة input داخل الـ terminal
+async function terminalInput(promptText=""){
+    if(stopFlag) throw "Execution stopped";
+    appendOutput(promptText);
+    return await new Promise(resolve=>{
+        const input = document.createElement("input");
+        term.appendChild(input);
+        input.focus();
+        input.addEventListener("keydown", function(e){
+            if(e.key === "Enter"){
+                let val = input.value;
+                term.removeChild(input);
+                appendOutput(val + "\n");
+                resolve(val);
+            }
+        });
+    });
+}
+
 // تشغيل الكود
 async function runCode(){
     if(!pyodideReady) return;
-
     stopFlag = false;
     term.innerHTML = "";
-
     const code = editor.getValue();
 
-    // محاكاة input داخل الـ terminal
-    pyodide.globals.set("custom_input", async function(promptText=""){
-        if(stopFlag) throw "Execution stopped";
-        appendOutput(promptText);
-        return await new Promise(resolve=>{
-            const input = document.createElement("input");
-            term.appendChild(input);
-            input.focus();
-            input.addEventListener("keydown", function(e){
-                if(e.key === "Enter"){
-                    let val = input.value;
-                    term.removeChild(input);
-                    appendOutput(val + "\n");
-                    resolve(val);
-                }
-            });
-        });
-    });
-
+    // استبدال input بـ terminalInput
     const wrappedCode = `
 import builtins
 _input = builtins.input
-builtins.input = lambda prompt="": custom_input(prompt)
+import asyncio
+builtins.input = lambda prompt="": asyncio.get_event_loop().run_until_complete(pyodide.globals.get("terminalInput")(prompt))
 ${code}
 builtins.input = _input
 `;
