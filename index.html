@@ -3,44 +3,76 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hussein Python Editor</title>
+<title>Hussein Python IDE</title>
+
+<!-- CodeMirror CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/dracula.min.css">
+
 <style>
-    body { font-family: monospace; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; background:#f4f4f4; }
-    h1 { background:#333; color:white; padding:10px; margin:0; text-align:center; }
-    #editor, #output { flex:1; width:100%; padding:10px; box-sizing:border-box; font-size:16px; border:none; resize:none; }
-    #editor { background:#fff; }
-    #output { background:#000; color:lime; white-space:pre-wrap; overflow-y:auto; }
-    button { padding:10px; font-size:16px; border:none; background:#28a745; color:white; cursor:pointer; }
-    button:hover { background:#218838; }
+body { margin:0; font-family: monospace; display:flex; flex-direction:column; height:100vh; background:#f4f4f4;}
+h1 { background:#333; color:white; padding:10px; margin:0; text-align:center;}
+#editor { flex:1; }
+#runBtn { padding:10px; font-size:16px; border:none; background:#28a745; color:white; cursor:pointer; }
+#runBtn:hover { background:#218838; }
+#output { flex:1; background:#000; color:lime; padding:10px; overflow-y:auto; white-space:pre-wrap;}
 </style>
 </head>
 <body>
-<h1>Hussein Python Editor</h1>
-<textarea id="editor">print("Hello, Hussein!")</textarea>
-<button onclick="runPython()">Run</button>
-<pre id="output"></pre>
 
+<h1>Hussein Python IDE</h1>
+<textarea id="editor">print("Hello, Hussein!")</textarea>
+<button id="runBtn">Run</button>
+<div id="output"></div>
+
+<!-- CodeMirror JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
+
+<!-- Pyodide -->
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+
 <script>
 let pyodideReadyPromise = loadPyodide();
 
-async function runPython() {
+let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+    mode: "python",
+    theme: "dracula",
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    autofocus: true
+});
+
+async function runCode() {
     let pyodide = await pyodideReadyPromise;
-    let code = document.getElementById("editor").value;
+    let code = editor.getValue();
+
+    // إعادة توجيه stdout و stderr
+    let userInput = [];
+    let inputFunc = async (promptText="") => {
+        return new Promise(resolve => {
+            let answer = window.prompt(promptText);
+            resolve(answer ?? "");
+        });
+    };
+
+    pyodide.globals.set("input", inputFunc);
+
     try {
         let result = await pyodide.runPythonAsync(`
-import io, sys
-buf = io.StringIO()
-sys.stdout = buf
-sys.stderr = buf
+import builtins
+input = __builtins__.input
 ${code}
-buf.getvalue()
         `);
-        document.getElementById("output").textContent = result;
-    } catch(err) {
+        document.getElementById("output").textContent = result ?? "";
+    } catch (err) {
         document.getElementById("output").textContent = err;
     }
 }
+
+document.getElementById("runBtn").addEventListener("click", runCode);
 </script>
+
 </body>
 </html>
