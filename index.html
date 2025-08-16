@@ -44,34 +44,30 @@ let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     autofocus: true
 });
 
+// لتخزين مدخلات المستخدم
+let inputValues = [];
+
 async function runCode() {
     let pyodide = await pyodideReadyPromise;
     let code = editor.getValue();
+    inputValues = [];
 
-    // دالة لتوفير input() ديناميكي
-    function getInput(promptText="") {
-        return new Promise(resolve => {
-            let answer = window.prompt(promptText);
-            resolve(answer ?? "");
-        });
+    // البحث عن كل استدعاءات input() في الكود
+    let inputRegex = /input\((.*?)\)/g;
+    let matches = [...code.matchAll(inputRegex)];
+
+    for (let match of matches) {
+        let promptText = match[1] ? match[1].replace(/['"]/g, '') : '';
+        let answer = window.prompt(promptText) ?? '';
+        inputValues.push(answer);
     }
 
+    // استبدال input() بالمدخلات الجاهزة
+    let index = 0;
+    let preparedCode = code.replace(inputRegex, () => `"${inputValues[index++]}"`);
+
     try {
-        // إعادة تعريف input في بايثون
-        pyodide.globals.set("js_input", getInput);
-
-        let wrappedCode = `
-import asyncio
-import builtins
-
-async def main():
-    builtins.input = lambda prompt="": asyncio.get_event_loop().run_until_complete(js_input(prompt))
-    ${code}
-
-asyncio.run(main())
-        `;
-
-        let result = await pyodide.runPythonAsync(wrappedCode);
+        let result = await pyodide.runPythonAsync(preparedCode);
         document.getElementById("output").textContent = result ?? "";
     } catch (err) {
         document.getElementById("output").textContent = err;
