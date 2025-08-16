@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hussein Python IDE</title>
+<title>Hussein Python IDE Light</title>
 
-<!-- CodeMirror CSS -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/dracula.min.css">
 
@@ -13,28 +12,41 @@
 body { margin:0; font-family: monospace; display:flex; flex-direction:column; height:100vh; background:#f4f4f4;}
 h1 { background:#333; color:white; padding:10px; margin:0; text-align:center;}
 #editor { flex:1; }
-#runBtn { padding:10px; font-size:16px; border:none; background:#28a745; color:white; cursor:pointer; }
+#buttons { display:flex; gap:5px; padding:5px; }
+button { flex:1; padding:10px; font-size:16px; cursor:pointer; border:none; color:white; }
+#runBtn { background:#28a745; }
 #runBtn:hover { background:#218838; }
-#output { flex:1; background:#000; color:lime; padding:10px; overflow-y:auto; white-space:pre-wrap;}
+#stopBtn { background:#dc3545; }
+#stopBtn:hover { background:#c82333; }
+#output { flex:1; background:#000; color:lime; padding:10px; overflow-y:auto; white-space:pre-wrap; position:relative; }
+#inputLine { display:flex; margin-top:5px; }
+#inputBox { flex:1; padding:5px; font-size:16px; background:#222; color:lime; border:none; }
+#submitInput { padding:5px 10px; font-size:16px; background:#007bff; color:white; border:none; cursor:pointer; }
+#submitInput:hover { background:#0056b3; }
 </style>
 </head>
 <body>
 
-<h1>Hussein Python IDE</h1>
+<h1>Hussein Python IDE Light</h1>
 <textarea id="editor">print("Hello, Hussein!")</textarea>
-<button id="runBtn">Run</button>
-<div id="output"></div>
+<div id="buttons">
+    <button id="runBtn">Run</button>
+    <button id="stopBtn">Stop</button>
+</div>
+<div id="output">
+    <div id="console"></div>
+    <div id="inputLine">
+        <input type="text" id="inputBox" placeholder="Enter input here">
+        <button id="submitInput">Submit</button>
+    </div>
+</div>
 
-<!-- CodeMirror JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
-
-<!-- Pyodide -->
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 
 <script>
 let pyodideReadyPromise = loadPyodide();
-
 let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     mode: "python",
     theme: "dracula",
@@ -44,47 +56,59 @@ let editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
     autofocus: true
 });
 
-// لتخزين مدخلات المستخدم
-let inputValues = [];
+let isRunning = false;
+let inputQueue = [];
+let resolveInput;
+
+document.getElementById("submitInput").addEventListener("click", () => {
+    let val = document.getElementById("inputBox").value;
+    document.getElementById("inputBox").value = "";
+    inputQueue.push(val);
+    if (resolveInput) {
+        resolveInput(inputQueue.shift());
+        resolveInput = null;
+    }
+});
+
+async function customInput(promptText="") {
+    let consoleDiv = document.getElementById("console");
+    if(promptText) consoleDiv.innerHTML += promptText + "\n";
+    if(inputQueue.length>0) return inputQueue.shift();
+    return await new Promise(resolve => { resolveInput = resolve; });
+}
 
 async function runCode() {
+    if(isRunning) return;
+    isRunning = true;
     let pyodide = await pyodideReadyPromise;
+    document.getElementById("console").innerHTML = "";
     let code = editor.getValue();
-    inputValues = [];
 
-    // البحث عن كل استدعاءات input() في الكود
-    let inputRegex = /input\((.*?)\)/g;
-    let matches = [...code.matchAll(inputRegex)];
-
-    for (let match of matches) {
-        let promptText = match[1] ? match[1].replace(/['"]/g, '') : '';
-        let answer = window.prompt(promptText) ?? '';
-        inputValues.push(answer);
-    }
-
-    // استبدال input() بالقيم المدخلة
-    let index = 0;
-    let preparedCode = code.replace(inputRegex, () => `"${inputValues[index++]}"`);
+    // استبدال input() بالدالة customInput
+    code = code.replace(/input\((.*?)\)/g, 'await customInput($1)');
 
     try {
-        // إعادة توجيه stdout و stderr
         await pyodide.runPythonAsync(`
-import sys
-import io
-sys.stdout = io.StringIO()
-sys.stderr = sys.stdout
-${preparedCode}
-output = sys.stdout.getvalue()
+import js
+import asyncio
+async def main():
+    ${code.split("\n").map(line => "    " + line).join("\n")}
+asyncio.run(main())
         `);
-
-        let output = pyodide.globals.get("output");
-        document.getElementById("output").textContent = output;
-    } catch (err) {
-        document.getElementById("output").textContent = err;
+    } catch(err) {
+        document.getElementById("console").innerText += err + "\n";
     }
+    isRunning = false;
 }
 
 document.getElementById("runBtn").addEventListener("click", runCode);
+document.getElementById("stopBtn").addEventListener("click", () => {
+    if(isRunning) {
+        pyodideReadyPromise.then(pyodide => pyodide._module._cancel(););
+        document.getElementById("console").innerText += "\n[Execution stopped]\n";
+        isRunning = false;
+    }
+});
 </script>
 
 </body>
