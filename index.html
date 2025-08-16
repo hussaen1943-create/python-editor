@@ -55,32 +55,38 @@ function runCode() {
     const term = document.getElementById("terminal");
     term.innerHTML = "";
 
+    // طابور للـ input
+    let inputQueue = [];
+    let waitingResolve = null;
+
+    function inputFunc(promptText="") {
+        return new Promise(resolve => {
+            term.innerHTML += promptText;
+            const input = document.createElement("input");
+            term.appendChild(input);
+            input.focus();
+            input.addEventListener("keydown", function(e) {
+                if(e.key === "Enter") {
+                    let val = input.value;
+                    term.removeChild(input);
+                    term.innerHTML += val + "\n";
+                    resolve(val);
+                }
+            });
+        });
+    }
+
     Sk.configure({
         output: (text) => {
-            term.innerHTML += text.replace(/\n/g, "<br>");
+            term.innerHTML += text.replace(/\n/g,"<br>");
             term.scrollTop = term.scrollHeight;
         },
         read: function(x) {
-            if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
+            if(Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
                 throw "File not found: '" + x + "'";
             return Sk.builtinFiles["files"][x];
         },
-        inputFun: function(promptText) {
-            return new Promise(resolve => {
-                term.innerHTML += promptText;
-                const input = document.createElement("input");
-                term.appendChild(input);
-                input.focus();
-                input.addEventListener("keydown", function(e) {
-                    if(e.key === "Enter") {
-                        let val = input.value;
-                        term.removeChild(input);
-                        term.innerHTML += val + "<br>";
-                        resolve(val);
-                    }
-                });
-            });
-        }
+        inputFun: inputFunc
     });
 
     let code = editor.getValue();
